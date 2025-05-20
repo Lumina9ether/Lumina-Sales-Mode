@@ -1,4 +1,3 @@
-
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import openai
@@ -6,13 +5,13 @@ import os
 import uuid
 import json
 import re
+from datetime import datetime
 from google.cloud import texttospeech
 
 app = Flask(__name__)
 CORS(app)
 
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "lumina-voice-ai.json"
 tts_client = texttospeech.TextToSpeechClient()
 
@@ -36,7 +35,6 @@ def check_missing_memory(memory):
     if not memory["preferences"].get("voice_style"): missing.append("voice_style")
     return missing
 
-
 def update_timeline_from_text(text, memory):
     keywords = ["mark today as", "record", "log", "note", "milestone"]
     if any(k in text.lower() for k in keywords):
@@ -48,7 +46,6 @@ def update_timeline_from_text(text, memory):
             timeline.append({"date": today, "event": event})
             memory["timeline"] = timeline
     return memory
-
 
 def update_memory_from_text(text, memory):
     if "my name is" in text.lower():
@@ -81,8 +78,6 @@ def ask():
         memory = update_memory_from_text(question, memory)
         save_memory(memory)
 
-
-        # Detect sales intent and suggest products
         sales_trigger = ""
         if any(k in question.lower() for k in ["start a business", "build a brand", "get more clients", "create content", "automate", "get leads"]):
             sales_trigger = "spark"
@@ -91,10 +86,10 @@ def ask():
         elif any(k in question.lower() for k in ["done for me", "set it up for me", "build it all", "just want it working"]):
             sales_trigger = "sovereign"
 
-
         missing = check_missing_memory(memory)
-                if missing:
-            ask_back_note = f"By the way, I’d love to know your {', '.join(missing)}. You can tell me by saying things like 'My goal is...' or 'My name is...'"
+        ask_back_note = ""
+        if missing:
+            ask_back_note = f"By the way, I’d love to know your {', '.join(missing)}. You can tell me by saying things like 'My goal is...' or 'My name is...'."
 
         context_intro = (
             f"User Name: {memory['personal'].get('name', '')}\n"
@@ -108,7 +103,6 @@ def ask():
             f"Recent Mood: {memory['emotional'].get('recent_state', '')}, Motivation Level: {memory['emotional'].get('motivation_level', 0)}"
         )
 
-        
         if "what are my milestones" in question.lower():
             timeline = memory.get("timeline", [])
             if timeline:
@@ -118,7 +112,6 @@ def ask():
                 return jsonify({"reply": "You don't have any milestones recorded yet. You can say: mark today as 'Got my first sale'."})
 
         conversation = [
-        
             {"role": "system", "content": "You are Lumina, a soulful AI guide that adapts to the user's evolving journey."},
             {"role": "system", "content": f"User memory context: {context_intro}"},
             {"role": "user", "content": question}
@@ -163,15 +156,10 @@ def speak():
     except Exception as e:
         return jsonify({"audio": "", "error": str(e)})
 
-if __name__ == "__main__":
-    app.run(debug=True)
-
-
 @app.route("/timeline")
 def timeline():
     memory = load_memory()
     return jsonify({"timeline": memory.get("timeline", [])})
-
 
 @app.route("/memory")
 def memory_view():
@@ -187,15 +175,4 @@ def update_memory():
     memory["business"]["income_target"] = data.get("income_target", "")
     memory["emotional"]["recent_state"] = data.get("mood", "")
     save_memory(memory)
-
-
-        # Detect sales intent and suggest products
-        sales_trigger = ""
-        if any(k in question.lower() for k in ["start a business", "build a brand", "get more clients", "create content", "automate", "get leads"]):
-            sales_trigger = "spark"
-        elif any(k in question.lower() for k in ["build my business fast", "7 day program", "guided build", "accountability", "how do I launch"]):
-            sales_trigger = "ignite"
-        elif any(k in question.lower() for k in ["done for me", "set it up for me", "build it all", "just want it working"]):
-            sales_trigger = "sovereign"
-
     return jsonify({"status": "success"})
